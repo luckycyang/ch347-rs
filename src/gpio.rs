@@ -1,13 +1,13 @@
 use std::{cell::RefCell, usize};
 
-pub struct Gpio_Config<'d> {
+pub struct GpioConfig<'d> {
     device: &'d crate::ch347::Ch347UsbDevice,
     pub ibuf: [u8; 11],
     pub obuf: [u8; 11],
 }
 
-impl<'d> Gpio_Config<'d> {
-    pub fn from_device(device: &'d crate::ch347::Ch347UsbDevice) -> Gpio_Config<'d> {
+impl<'d> GpioConfig<'d> {
+    pub fn from_device(device: &'d crate::ch347::Ch347UsbDevice) -> GpioConfig<'d> {
         let mut ibuf = [0; 11];
         let obuf = [
             0xCC, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -36,13 +36,13 @@ impl<'d> Gpio_Config<'d> {
 }
 
 pub struct Flex<'d, 'a> {
-    config: &'a RefCell<Gpio_Config<'d>>,
+    config: &'a RefCell<GpioConfig<'d>>,
     pin: u8,
     state: bool,
 }
 
 impl<'d, 'a> Flex<'d, 'a> {
-    pub fn from_config(config: &'a RefCell<Gpio_Config<'d>>, pin: u8) -> Flex<'d, 'a> {
+    pub fn from_config(config: &'a RefCell<GpioConfig<'d>>, pin: u8) -> Flex<'d, 'a> {
         Flex {
             config: config,
             pin: pin,
@@ -98,52 +98,83 @@ pub struct Input<'d, 'a> {
 }
 
 impl<'d, 'a> Input<'d, 'a> {
-    pub fn new(config: &'a RefCell<Gpio_Config<'d>>, pin: u8) -> Self {
+    pub fn new(config: &'a RefCell<GpioConfig<'d>>, pin: u8) -> Self {
         let flex = Flex::from_config(config, pin);
         flex.trans_input();
         Self { pin: flex }
     }
+
+    pub fn is_low(&self) -> bool {
+        self.pin.is_low()
+    }
+
+    pub fn is_high(&self) -> bool {
+        self.pin.is_high()
+    }
 }
 
 impl<'d, 'a> Output<'d, 'a> {
-    pub fn new(config: &'a RefCell<Gpio_Config<'d>>, pin: u8) -> Self {
+    pub fn new(config: &'a RefCell<GpioConfig<'d>>, pin: u8) -> Self {
         let flex = Flex::from_config(config, pin);
         flex.trans_output();
         Self { pin: flex }
     }
 
-    fn set_low(&mut self) {
+    pub fn set_low(&mut self) {
         self.pin.set_low();
     }
 
-    fn set_high(&mut self) {
+    pub fn set_high(&mut self) {
         self.pin.set_high();
     }
 
-    fn set_state(&mut self, state: bool) {
+    pub fn set_state(&mut self, state: bool) {
         self.pin.set_state(state);
     }
+
+    pub fn toggle(&mut self) {
+        self.pin.set_state(!self.pin.state);
+    }
 }
 
-impl<'d, 'a> embedded_hal::digital::ErrorType for Output<'d, 'a> {
-    type Error = core::convert::Infallible;
-}
+mod embedded_hal_impls {
 
-impl<'d, 'a> embedded_hal::digital::OutputPin for Output<'d, 'a> {
-    fn set_low(&mut self) -> Result<(), Self::Error> {
-        self.set_low();
-        Ok(())
+    impl<'d, 'a> embedded_hal::digital::ErrorType for super::Output<'d, 'a> {
+        type Error = core::convert::Infallible;
     }
 
-    fn set_high(&mut self) -> Result<(), Self::Error> {
-        self.set_high();
-        Ok(())
+    impl<'d, 'a> embedded_hal::digital::OutputPin for super::Output<'d, 'a> {
+        fn set_low(&mut self) -> Result<(), Self::Error> {
+            Self::set_low(self);
+            Ok(())
+        }
+
+        fn set_high(&mut self) -> Result<(), Self::Error> {
+            Self::set_high(self);
+            Ok(())
+        }
+
+        fn set_state(&mut self, state: embedded_hal::digital::PinState) -> Result<(), Self::Error> {
+            match state {
+                embedded_hal::digital::PinState::Low => Ok(self.set_low()),
+                embedded_hal::digital::PinState::High => Ok(self.set_high()),
+            }
+        }
     }
 
-    fn set_state(&mut self, state: embedded_hal::digital::PinState) -> Result<(), Self::Error> {
-        match state {
-            embedded_hal::digital::PinState::Low => Ok(self.set_low()),
-            embedded_hal::digital::PinState::High => Ok(self.set_high()),
+    impl<'d, 'a> embedded_hal::digital::ErrorType for super::Input<'d, 'a> {
+        type Error = core::convert::Infallible;
+    }
+
+    impl<'d, 'a> embedded_hal::digital::InputPin for super::Input<'d, 'a> {
+        fn is_low(&mut self) -> Result<bool, Self::Error> {
+            Self::is_low(&self);
+            Ok(false)
+        }
+
+        fn is_high(&mut self) -> Result<bool, Self::Error> {
+            Self::is_high(&self);
+            Ok(true)
         }
     }
 }

@@ -1,12 +1,10 @@
 use std::{fmt::Display, time::Duration, usize};
 
 use nusb::DeviceInfo;
-use smol::fs::write;
 
 use crate::usb_util::InterfaceExt;
 
 const CH34X_VID_PID: [(u16, u16); 3] = [(0x1A86, 0x55DE), (0x1A86, 0x55DD), (0x1A86, 0x55E8)];
-const REV_BUF_MAX: usize = 64;
 
 #[derive(Debug)]
 pub enum Ch347Error {
