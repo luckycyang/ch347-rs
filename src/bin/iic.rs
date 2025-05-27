@@ -13,12 +13,12 @@ fn set_line(iic: &mut IicDevice, line: u8) {
 
 fn fill(iic: &mut IicDevice, data: u8) {
     for i in 0..8 {
-        let data = [0x40, data];
+        let mut buf = Vec::new();
+        buf.push(0x40);
+        buf.extend_from_slice(&[data; 128]);
         set_line(iic, i);
         set_column(iic, 0);
-        for _ in 0..128 {
-            iic.write_with_address(&data, 0x78);
-        }
+        iic.write_with_address(&buf, 0x78);
     }
 }
 
@@ -39,9 +39,9 @@ fn main() {
     for i in commands {
         iic.write_with_address(&[0x00, i], 0x78);
     }
-    let mut state = 0x00;
+    let mut state: u8 = 0x00;
     loop {
-        state = !state;
+        state = state.wrapping_add(1);
         fill(&mut iic, state);
     }
 }
