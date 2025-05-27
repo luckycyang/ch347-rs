@@ -5,9 +5,15 @@ edition = "2024"
 
 [dependencies]
 embedded-hal = "1.0.0"
+env_logger = "0.11.8"
+log = "0.4.27"
 nusb = "0.1.14"
 smol = "2.0.2"
 
 [[bin]]
 name = "gpio_rw"
 path = "src/bin/gpio_rw.rs"
+
+[[bin]]
+name = "iic"
+path = "src/bin/iic.rs"
