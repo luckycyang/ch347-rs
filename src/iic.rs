@@ -1,13 +1,16 @@
 use std::error::Error;
 use std::fmt;
+
+/// I2C command codes for CH347 device
+#[derive(Clone, Copy)]
 enum Ch347IicCommand {
-    Ch347CmdI2cStream, // 命令流起始标志
-    Ch347CmdI2cStmEnd, // 命令流结束标志
-    Ch347CmdI2cStmSta, // 生成 I2C 起始条件（START）
-    Ch347CmdI2cStmSto, // 生成 I2C 停止条件（STOP）
-    Ch347CmdI2cStmOut, // 写操作，后接数据长度和数据
-    Ch347CmdI2cStmIn,  // 读操作，后接读取字节数
-    Ch347CmdI2cStmSet, // 设置 I2C 总线速度
+    Ch347CmdI2cStream, // Command stream start
+    Ch347CmdI2cStmEnd, // Command stream end
+    Ch347CmdI2cStmSta, // I2C START condition
+    Ch347CmdI2cStmSto, // I2C STOP condition
+    Ch347CmdI2cStmOut, // Write operation, followed by data length and data
+    Ch347CmdI2cStmIn,  // Read operation, followed by byte count
+    Ch347CmdI2cStmSet, // Set I2C bus speed
 }
 
 impl From<Ch347IicCommand> for u8 {
@@ -24,6 +27,8 @@ impl From<Ch347IicCommand> for u8 {
     }
 }
 
+/// I2C bus speed settings for CH347
+#[derive(Clone, Copy)]
 pub enum Ch347IicSpeed {
     Khz20,
     Khz50,
@@ -48,6 +53,7 @@ impl From<Ch347IicSpeed> for u8 {
     }
 }
 
+/// I2C device abstraction for CH347 USB device
 pub struct IicDevice<'a> {
     device: &'a crate::ch347::Ch347UsbDevice,
     speed: Ch347IicSpeed,
@@ -57,11 +63,14 @@ pub struct IicDevice<'a> {
     iindex: usize,
 }
 
+/// I2C-specific error types
 #[derive(Debug)]
 pub enum I2CError {
-    HardwareError(i32), // 硬件错误
-    Timeout,            // 传输超时
-    InvalidResponse,    // 无效的硬件响应
+    HardwareError(i32), // Hardware-related error with code
+    Timeout,            // Transmission timeout
+    InvalidResponse,    // Invalid response from device
+    BufferOverflow,     // Buffer capacity exceeded
+    UsbError(String),   // USB communication error
 }
 
 impl fmt::Display for I2CError {
@@ -70,127 +79,137 @@ impl fmt::Display for I2CError {
             I2CError::HardwareError(code) => write!(f, "I2C hardware error: {}", code),
             I2CError::Timeout => write!(f, "I2C transmission timeout"),
             I2CError::InvalidResponse => write!(f, "Invalid I2C response from device"),
+            I2CError::BufferOverflow => write!(f, "I2C buffer overflow"),
+            I2CError::UsbError(msg) => write!(f, "USB error: {}", msg),
         }
     }
 }
 
 impl Error for I2CError {}
 
+/// Formats a byte array as a hexadecimal string for logging
 fn format_u8_array(arr: &[u8]) -> String {
     let formatted: Vec<String> = arr.iter().map(|&byte| format!("0x{:02x}", byte)).collect();
     format!("[{}]", formatted.join(", "))
 }
 
 impl<'a> IicDevice<'a> {
-    pub fn new(device: &'a crate::ch347::Ch347UsbDevice) -> IicDevice<'a> {
-        // in ch347t, gpio3/scl
-        // device.write_bulk(&[0xCC, 0x08, 0x00, 0x00, 0x00, 0x00, 0xF8, 0x00, 0x00, 0x00, 0x00])
-        // in ch347 when set speed to send E2 comamnd
-        let mut buf = [0; 4];
+    /// Creates a new I2C device instance with default speed (100 kHz)
+    pub fn new(device: &'a crate::ch347::Ch347UsbDevice) -> Result<Self, I2CError> {
+        // Initialize CH347 I2C interface
+        let init_cmd = [
+            0xE2, 0x08, 0x00, 0x00, 0x00, 0x81, 0x81, 0x00, 0x00, 0x00, 0x00,
+        ];
         device
-            .write_bulk(&[
-                0xE2, 0x08, 0x00, 0x00, 0x00, 0x81, 0x81, 0x00, 0x00, 0x00, 0x00,
-            ])
-            .expect("Can't init iic device");
-        device.read_bulk(&mut buf).expect("Can't init iic device");
-        log::info!("e2 rev: {}", format_u8_array(&buf));
-        Self {
+            .write_bulk(&init_cmd)
+            .map_err(|e| I2CError::UsbError(e.to_string()))?;
+
+        let mut buf = [0; 4];
+        let read_len = device
+            .read_bulk(&mut buf)
+            .map_err(|e| I2CError::UsbError(e.to_string()))?;
+        log::info!("I2C init response: {}", format_u8_array(&buf[..read_len]));
+
+        Ok(Self {
             device,
             speed: Ch347IicSpeed::Khz100,
             obuf: [0; 80],
             oindex: 0,
             ibuf: [0; 80],
             iindex: 0,
-        }
+        })
     }
 
+    /// Clears the output buffer and resets the output index
     fn obuf_clear(&mut self) {
-        self.obuf.copy_from_slice(&[0; 80]);
+        self.obuf.fill(0);
         self.oindex = 0;
     }
 
+    /// Clears the input buffer and resets the input index
     fn ibuf_clear(&mut self) {
-        self.ibuf.copy_from_slice(&[0; 80]);
-        self.oindex += 1;
+        self.ibuf.fill(0);
+        self.iindex = 0;
     }
 
-    pub fn write_with_data(&mut self, data: &[u8]) {
+    /// Writes data to the I2C device, handling chunking for large transfers
+    pub fn write_with_data(&mut self, data: &[u8]) -> Result<(), I2CError> {
         let mut left = data.len();
         let mut ptr = 0;
         let mut is_first = true;
 
         while left > 0 {
-            let wlen = if left > 63 { 63 } else { left };
-            let chunk = &data[ptr..(ptr + wlen)];
+            let wlen = left.min(63); // Max 63 bytes per transfer
+            if self.oindex + wlen + 4 > self.obuf.len() {
+                return Err(I2CError::BufferOverflow);
+            }
 
-            self.with_stream_start();
+            let chunk = &data[ptr..ptr + wlen];
 
+            self.with_stream_start().unwrap();
             if is_first {
-                self.with_start();
+                self.with_start().unwrap();
                 is_first = false;
             }
-
-            self.with_write(chunk);
-
+            self.with_write(chunk).unwrap();
             if left == wlen {
-                self.with_stop();
+                self.with_stop().unwrap();
             }
+            self.with_stream_end().unwrap();
 
-            self.with_stream_end();
-
-            self.flush(true);
+            self.flush(true)?;
 
             ptr += wlen;
             left -= wlen;
         }
+        Ok(())
     }
 
-    pub fn write_with_address(&mut self, buf: &[u8], address: u8) {
+    /// Writes data to the I2C device with a specified address
+    pub fn write_with_address(&mut self, buf: &[u8], address: u8) -> Result<(), I2CError> {
         let mut data = vec![address];
         data.extend_from_slice(buf);
-        self.write_with_data(&data);
+        self.write_with_data(&data)
     }
+
+    /// Reads data from the I2C device with a specified address
     pub fn read_with_address(
         &mut self,
         buf: &mut [u8],
         address: u8,
         len: usize,
     ) -> Result<(), I2CError> {
-        const MAX_I2C_XFER: usize = 63; // 最大单次读取字节数
-        let mut byteoffset = 0; // 已读取的字节偏移
-        let mut bytes_to_read = len.min(buf.len()); // 确保不超过缓冲区长度
+        const MAX_I2C_XFER: usize = 63; // Maximum bytes per read
+        let mut byteoffset = 0;
+        let mut bytes_to_read = len.min(buf.len());
 
         while bytes_to_read > 0 {
-            // 计算本次读取的字节数
-            let read_len = if bytes_to_read > MAX_I2C_XFER {
-                MAX_I2C_XFER
-            } else {
-                bytes_to_read
-            };
+            let read_len = bytes_to_read.min(MAX_I2C_XFER);
+            if self.oindex + 4 > self.obuf.len() || self.ibuf.len() < read_len + 1 {
+                return Err(I2CError::BufferOverflow);
+            }
 
-            // 清空输出缓冲区
             self.obuf_clear();
+            self.with_stream_start().unwrap();
+            self.with_start().unwrap();
+            // Write device address in read mode (shift left and set read bit)
+            self.with_write(&[(address << 1) | 1]).unwrap();
 
-            // 构造 I2C 命令
-            self.with_stream_start();
-            self.with_start();
-            // 写入设备地址（读模式：地址左移 1 位并置最低位为 1）
-            self.with_write(&[(address << 1) | 1]);
-
-            // 设置读取字节数
+            // Set read command
             if read_len > 1 {
                 self.with_command(
                     u8::from(Ch347IicCommand::Ch347CmdI2cStmIn) | (read_len - 1) as u8,
-                );
+                )
+                .unwrap();
             }
-            self.with_command(Ch347IicCommand::Ch347CmdI2cStmIn);
-            self.with_stop();
-            self.with_stream_end();
+            self.with_command(Ch347IicCommand::Ch347CmdI2cStmIn)
+                .unwrap();
+            self.with_stop().unwrap();
+            self.with_stream_end().unwrap();
 
-            // 执行传输
-            self.flush(true);
+            self.flush(true)?;
 
-            // 检查接收到的数据
+            // Validate response
             if self.iindex < read_len + 1 {
                 return Err(I2CError::InvalidResponse);
             }
@@ -198,78 +217,131 @@ impl<'a> IicDevice<'a> {
                 return Err(I2CError::Timeout);
             }
 
-            // 复制数据到输出缓冲区
-            let dest_slice = &mut buf[byteoffset..byteoffset + read_len];
-            dest_slice.copy_from_slice(&self.ibuf[1..1 + read_len]);
+            // Copy data to output buffer
+            buf[byteoffset..byteoffset + read_len].copy_from_slice(&self.ibuf[1..1 + read_len]);
 
-            // 更新偏移和剩余字节
             byteoffset += read_len;
             bytes_to_read -= read_len;
         }
-
         Ok(())
     }
 
-    fn flush(&mut self, read: bool) {
+    /// Flushes the output buffer to the USB device and optionally reads response
+    fn flush(&mut self, read: bool) -> Result<(), I2CError> {
+        if self.oindex > self.obuf.len() {
+            return Err(I2CError::BufferOverflow);
+        }
+
         log::info!(
-            "send data to usb: {}",
+            "Sending to USB: {}",
             format_u8_array(&self.obuf[..self.oindex])
         );
         self.device
-            .write_bulk(&self.obuf[0..self.oindex])
-            .expect("send data to usb device error");
+            .write_bulk(&self.obuf[..self.oindex])
+            .map_err(|e| I2CError::UsbError(e.to_string()))?;
+
         if read {
             self.ibuf_clear();
             let rev = self
                 .device
                 .read_bulk(&mut self.ibuf)
-                .expect("read data from usb device error");
+                .map_err(|e| I2CError::UsbError(e.to_string()))?;
             self.iindex = rev;
-            log::info!(
-                "rev data from usb: {}",
-                format_u8_array(&self.ibuf[..self.iindex])
-            );
-            self.iindex = rev;
+            log::info!("Received from USB: {}", format_u8_array(&self.ibuf[..rev]));
         }
         self.obuf_clear();
+        Ok(())
     }
 
-    fn with_command<T>(&mut self, command: T)
-    where
-        T: Into<u8>,
-    {
+    /// Appends a command to the output buffer
+    fn with_command<T: Into<u8>>(&mut self, command: T) -> Result<(), I2CError> {
+        if self.oindex >= self.obuf.len() {
+            return Err(I2CError::BufferOverflow);
+        }
         self.obuf[self.oindex] = command.into();
         self.oindex += 1;
+        Ok(())
     }
 
-    fn with_stream_start(&mut self) {
-        self.with_command(Ch347IicCommand::Ch347CmdI2cStream);
+    /// Appends I2C stream start command
+    fn with_stream_start(&mut self) -> Result<(), I2CError> {
+        self.with_command(Ch347IicCommand::Ch347CmdI2cStream)
     }
 
-    fn with_stream_end(&mut self) {
-        self.with_command(Ch347IicCommand::Ch347CmdI2cStmEnd);
+    /// Appends I2C stream end command
+    fn with_stream_end(&mut self) -> Result<(), I2CError> {
+        self.with_command(Ch347IicCommand::Ch347CmdI2cStmEnd)
     }
 
-    fn with_start(&mut self) {
-        self.with_command(Ch347IicCommand::Ch347CmdI2cStmSta);
+    /// Appends I2C START condition
+    fn with_start(&mut self) -> Result<(), I2CError> {
+        self.with_command(Ch347IicCommand::Ch347CmdI2cStmSta)
     }
 
-    fn with_stop(&mut self) {
-        self.with_command(Ch347IicCommand::Ch347CmdI2cStmSto);
+    /// Appends I2C STOP condition
+    fn with_stop(&mut self) -> Result<(), I2CError> {
+        self.with_command(Ch347IicCommand::Ch347CmdI2cStmSto)
     }
 
-    fn with_write(&mut self, buf: &[u8]) {
+    /// Appends write command with data
+    fn with_write(&mut self, buf: &[u8]) -> Result<(), I2CError> {
         let len = buf.len();
-        self.with_command(u8::from(Ch347IicCommand::Ch347CmdI2cStmOut) | len as u8);
-        let new_index = self.oindex + len;
-        self.obuf[self.oindex..new_index].copy_from_slice(buf);
-        self.oindex = new_index;
+        if len > 63 || self.oindex + len + 1 > self.obuf.len() {
+            return Err(I2CError::BufferOverflow);
+        }
+        self.with_command(u8::from(Ch347IicCommand::Ch347CmdI2cStmOut) | len as u8)?;
+        self.obuf[self.oindex..self.oindex + len].copy_from_slice(buf);
+        self.oindex += len;
+        Ok(())
     }
 
-    pub fn set_speed(&mut self, speed: Ch347IicSpeed) {
-        self.with_stream_start();
-        self.with_command(u8::from(speed) | u8::from(Ch347IicCommand::Ch347CmdI2cStmSet));
-        self.with_stream_end();
-        self.flush(false);
+    /// Sets the I2C bus speed
+    pub fn set_speed(&mut self, speed: Ch347IicSpeed) -> Result<(), I2CError> {
+        self.speed = speed;
+        self.obuf_clear();
+        self.with_stream_start()?;
+        self.with_command(u8::from(speed) | u8::from(Ch347IicCommand::Ch347CmdI2cStmSet))?;
+        self.with_stream_end()?;
+        self.flush(false)?;
+        Ok(())
+    }
+}
+
+mod embedded_hal_impls {
+    use super::{I2CError, IicDevice};
+    use embedded_hal::i2c::{ErrorType, I2c, Operation};
+
+    impl ErrorType for IicDevice<'_> {
+        type Error = I2CError;
+    }
+
+    impl embedded_hal::i2c::Error for I2CError {
+        fn kind(&self) -> embedded_hal::i2c::ErrorKind {
+            match self {
+                _ => embedded_hal::i2c::ErrorKind::Other,
+            }
+        }
+    }
+
+    impl I2c for IicDevice<'_> {
+        /// Executes a sequence of I2C operations (read/write) for a given address
+        fn transaction(
+            &mut self,
+            address: u8,
+            operations: &mut [Operation<'_>],
+        ) -> Result<(), Self::Error> {
+            for op in operations.iter_mut() {
+                match op {
+                    Operation::Read(buf) => {
+                        self.read_with_address(buf, address, buf.len())?;
+                    }
+                    Operation::Write(buf) => {
+                        // For write, include address in the data stream
+                        self.write_with_address(buf, address << 1)?;
+                    }
+                }
+            }
+            Ok(())
+        }
     }
 }

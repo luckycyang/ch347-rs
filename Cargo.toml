@@ -10,10 +10,17 @@ log = "0.4.27"
 nusb = "0.1.14"
 smol = "2.0.2"
 
-[[bin]]
-name = "gpio_rw"
-path = "src/bin/gpio_rw.rs"
+[dev-dependencies]
+ssd1306 = "0.10.0"
 
-[[bin]]
+[[example]]
+name = "gpio_rw"
+path = "examples/gpio_rw.rs"
+
+[[example]]
 name = "iic"
-path = "src/bin/iic.rs"
+path = "examples/iic.rs"
+
+[[example]]
+name = "ssd1306"
+path = "examples/ssd1306.rs"
