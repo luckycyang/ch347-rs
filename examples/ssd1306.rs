@@ -15,20 +15,21 @@ fn main() {
     .into_terminal_mode();
     display.init().unwrap();
     display.clear().unwrap();
-    loop {
-        unsafe {
-            for i in 97..123 {
-                display
-                    .write_str(core::str::from_utf8_unchecked(&[i]))
-                    .unwrap();
-            }
+    unsafe {
+        for i in 97..123 {
+            display
+                .write_str(core::str::from_utf8_unchecked(&[i]))
+                .unwrap();
+        }
 
-            for c in 65..91 {
-                let _ = display.write_str(core::str::from_utf8_unchecked(&[c]));
-            }
+        for c in 65..91 {
+            let _ = display.write_str(core::str::from_utf8_unchecked(&[c]));
         }
     }
 
     // there is bug that just output the last ascii as `!`, also want out `foo` that is just `o`
-    // write!(display, "hello, world!").unwrap();
+    write!(display, "{}", unsafe {
+        core::str::from_utf8_unchecked(b"hello, world!")
+    })
+    .unwrap();
 }
