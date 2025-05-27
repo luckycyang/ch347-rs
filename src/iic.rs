@@ -114,33 +114,24 @@ impl<'a> IicDevice<'a> {
         self.oindex += 1;
     }
 
-    pub fn write_with_address(&mut self, buf: &[u8], address: u8) {
-        // numms of send bytes
-        let mut left = buf.len();
+    pub fn write_with_data(&mut self, data: &[u8]) {
+        let mut left = data.len();
         let mut ptr = 0;
         let mut is_first = true;
 
-        // bytes want to send
         while left > 0 {
-            let mut data = Vec::new();
-            let wlen = if left > 63 - 1 && is_first {
-                63 - 1
-            } else {
-                if left > 63 { 63 } else { left }
-            };
+            let wlen = if left > 63 { 63 } else { left };
+            let chunk = &data[ptr..(ptr + wlen)];
 
             self.with_stream_start();
 
             if is_first {
                 self.with_start();
-                data.push(address);
                 is_first = false;
             }
 
-            data.extend_from_slice(&buf[ptr..(ptr + wlen)]);
-            self.with_write(&data);
+            self.with_write(chunk);
 
-            // this is last packet
             if left == wlen {
                 self.with_stop();
             }
@@ -152,15 +143,12 @@ impl<'a> IicDevice<'a> {
             ptr += wlen;
             left -= wlen;
         }
+    }
 
-        // let mut data = vec![address];
-        // data.extend_from_slice(buf);
-        // self.with_stream_start();
-        // self.with_start();
-        // self.with_write(&data);
-        // self.with_stop();
-        // self.with_stream_end();
-        // self.flush(true);
+    pub fn write_with_address(&mut self, buf: &[u8], address: u8) {
+        let mut data = vec![address];
+        data.extend_from_slice(buf);
+        self.write_with_data(&data);
     }
     pub fn read_with_address(
         &mut self,
