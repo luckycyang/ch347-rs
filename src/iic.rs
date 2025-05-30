@@ -179,51 +179,22 @@ impl<'a> IicDevice<'a> {
         address: u8,
         len: usize,
     ) -> Result<(), I2CError> {
-        const MAX_I2C_XFER: usize = 63; // Maximum bytes per read
-        let mut byteoffset = 0;
-        let mut bytes_to_read = len.min(buf.len());
+        self.obuf_clear();
+        self.with_stream_start()?;
+        self.with_start()?;
+        // Write device address in read mode (shift left and set read bit)
+        self.with_write(&[address])?;
+        self.with_command(u8::from(Ch347IicCommand::Ch347CmdI2cStmIn) | (len) as u8)?;
+        self.with_stop()?;
+        self.with_stream_end()?;
+        self.flush(true)?;
 
-        while bytes_to_read > 0 {
-            let read_len = bytes_to_read.min(MAX_I2C_XFER);
-            if self.oindex + 4 > self.obuf.len() || self.ibuf.len() < read_len + 1 {
-                return Err(I2CError::BufferOverflow);
-            }
-
-            self.obuf_clear();
-            self.with_stream_start().unwrap();
-            self.with_start().unwrap();
-            // Write device address in read mode (shift left and set read bit)
-            self.with_write(&[(address << 1) | 1]).unwrap();
-
-            // Set read command
-            if read_len > 1 {
-                self.with_command(
-                    u8::from(Ch347IicCommand::Ch347CmdI2cStmIn) | (read_len - 1) as u8,
-                )
-                .unwrap();
-            }
-            self.with_command(Ch347IicCommand::Ch347CmdI2cStmIn)
-                .unwrap();
-            self.with_stop().unwrap();
-            self.with_stream_end().unwrap();
-
-            self.flush(true)?;
-
-            // Validate response
-            if self.iindex < read_len + 1 {
-                return Err(I2CError::InvalidResponse);
-            }
-            if self.ibuf[0] != 1 {
-                return Err(I2CError::Timeout);
-            }
-
-            // Copy data to output buffer
-            buf[byteoffset..byteoffset + read_len].copy_from_slice(&self.ibuf[1..1 + read_len]);
-
-            byteoffset += read_len;
-            bytes_to_read -= read_len;
+        if self.iindex - 1 != len {
+            Err(I2CError::InvalidResponse)
+        } else {
+            buf.copy_from_slice(&self.ibuf[1..self.iindex]);
+            Ok(())
         }
-        Ok(())
     }
 
     /// Flushes the output buffer to the USB device and optionally reads response
@@ -333,7 +304,7 @@ mod embedded_hal_impls {
             for op in operations.iter_mut() {
                 match op {
                     Operation::Read(buf) => {
-                        self.read_with_address(buf, address, buf.len())?;
+                        self.read_with_address(buf, (address << 1) | 1, buf.len())?;
                     }
                     Operation::Write(buf) => {
                         // For write, include address in the data stream
@@ -341,6 +312,33 @@ mod embedded_hal_impls {
                     }
                 }
             }
+            Ok(())
+        }
+    }
+}
+
+mod embedded_hal_old {
+    use embedded_hal_old as embedded_hal_0_2_7;
+
+    use super::{I2CError, IicDevice};
+
+    impl embedded_hal_0_2_7::blocking::i2c::WriteRead for IicDevice<'_> {
+        type Error = I2CError;
+        fn write_read(
+            &mut self,
+            address: u8,
+            bytes: &[u8],
+            buffer: &mut [u8],
+        ) -> Result<(), Self::Error> {
+            <Self as embedded_hal::i2c::I2c>::write_read(self, address, bytes, buffer)?;
+            Ok(())
+        }
+    }
+
+    impl embedded_hal_0_2_7::blocking::i2c::Write for IicDevice<'_> {
+        type Error = I2CError;
+        fn write(&mut self, address: u8, bytes: &[u8]) -> Result<(), Self::Error> {
+            <Self as embedded_hal::i2c::I2c>::write(self, address, bytes)?;
             Ok(())
         }
     }

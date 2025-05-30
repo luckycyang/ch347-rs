@@ -5,12 +5,14 @@ edition = "2024"
 
 [dependencies]
 embedded-hal = "1.0.0"
+embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
 env_logger = "0.11.8"
 log = "0.4.27"
 nusb = "0.1.14"
 smol = "2.0.2"
 
 [dev-dependencies]
+mpu6050 = "0.1.6"
 ssd1306 = "0.10.0"
 
 [[example]]
@@ -24,3 +26,7 @@ path = "examples/iic.rs"
 [[example]]
 name = "ssd1306"
 path = "examples/ssd1306.rs"
+
+[[example]]
+name = "mpu6050"
+path = "examples/mpu6050.rs"

@@ -2,6 +2,7 @@ use ch347_rs::{ch347::Ch347UsbDevice, iic::IicDevice};
 use core::fmt::Write;
 use ssd1306::{I2CDisplayInterface, Ssd1306, mode::DisplayConfig, size::DisplaySize128x64};
 fn main() {
+    env_logger::init();
     let ch347 = Ch347UsbDevice::new().unwrap();
     let mut iic = IicDevice::new(&ch347).unwrap();
     iic.set_speed(ch347_rs::iic::Ch347IicSpeed::Mhz1).unwrap();
