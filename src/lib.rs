@@ -1,4 +1,5 @@
 pub mod ch347;
 pub mod gpio;
-pub mod usb_util;
 pub mod iic;
+pub mod spi;
+pub mod usb_util;

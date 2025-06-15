@@ -65,14 +65,14 @@ impl Ch347UsbDevice {
     pub fn write_bulk(&self, buf: &[u8]) -> Result<usize, Box<dyn std::error::Error>> {
         let bytes = self
             .device
-            .write_bulk(self.epout, buf, Duration::from_millis(500))?;
+            .write_bulk(self.epout, buf, Duration::from_millis(1000))?;
         Ok(bytes)
     }
 
     pub fn read_bulk(&self, buf: &mut [u8]) -> Result<usize, Box<dyn std::error::Error>> {
         let bytes = self
             .device
-            .read_bulk(self.epin, buf, Duration::from_millis(500))?;
+            .read_bulk(self.epin, buf, Duration::from_millis(1000))?;
 
         Ok(bytes)
     }

@@ -30,3 +30,7 @@ path = "examples/ssd1306.rs"
 [[example]]
 name = "mpu6050"
 path = "examples/mpu6050.rs"
+
+[[example]]
+name = "spi_t"
+path = "examples/spi_t.rs"
