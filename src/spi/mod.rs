@@ -54,6 +54,7 @@ pub mod instance {
                 0xC1, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             ];
             obuf[index] = state;
+            ch347::write(&obuf).unwrap();
         }
 
         /// 一次最多发 4093 个byte
@@ -247,30 +248,69 @@ pub struct SpiDevice<'d, T: Instance> {
 }
 
 impl<'d, T: Instance> SpiDevice<'d, T> {
-    pub fn new(config: Config) -> Self {
+    pub fn new(_spi: impl Peripheral<P = T>, config: Config) -> Self {
         T::set_config(config);
         Self { _spi: PhantomData }
     }
 
-    pub fn write(&self, buf: &[u8]) {
+    pub fn write_data(&self, buf: &[u8]) {
         T::cs_write(CSPin::CS0, false);
         T::write(buf);
         T::cs_write(CSPin::CS0, true);
     }
 
-    pub fn read(&self, buf: &mut [u8]) {
+    pub fn read_data(&self, buf: &mut [u8]) {
         T::cs_write(CSPin::CS0, false);
         T::read(buf);
         T::cs_write(CSPin::CS0, true);
     }
 
-    pub fn write_and_read(ibuf: &mut [u8], obuf: &[u8]) {
+    pub fn write_and_read(&self, ibuf: &mut [u8], obuf: &[u8]) {
         T::cs_write(CSPin::CS0, false);
         T::write_and_read(ibuf, obuf);
+        T::cs_write(CSPin::CS0, true);
+    }
+
+    pub fn write_and_read_in_place(&self, buf: &mut [u8]) {
+        // 做不到单片机那种细致的传输
+        let mut obuf = Vec::new();
+        obuf.extend_from_slice(&buf);
+        T::cs_write(CSPin::CS0, false);
+        self.write_and_read(buf, &obuf);
         T::cs_write(CSPin::CS0, true);
     }
 }
 
 // SpiBus 是 SCK, MISO, MOSI
-// 目前未实现 embedded_hal
-// 先使用普通接口
+
+mod embedded_hal_v100_impl {
+    use std::{thread::sleep, time::Duration};
+
+    use embedded_hal::spi::*;
+
+    use crate::spi::Instance;
+
+    impl<'d, T: Instance> ErrorType for super::SpiDevice<'d, T> {
+        type Error = core::convert::Infallible;
+    }
+
+    impl<'d, T: Instance> SpiDevice for super::SpiDevice<'d, T> {
+        fn transaction(&mut self, operations: &mut [Operation<'_, u8>]) -> Result<(), Self::Error> {
+            // 通常来说 operations 只有一个
+            for op in operations.iter_mut() {
+                match op {
+                    Operation::Read(buf) => self.read_data(buf),
+                    Operation::Write(buf) => self.write_data(buf),
+                    Operation::Transfer(ibuf, obuf) => self.write_and_read(ibuf, obuf),
+                    Operation::TransferInPlace(buf) => self.write_and_read_in_place(buf),
+                    Operation::DelayNs(ns) => {
+                        sleep(Duration::from_nanos(*ns as u64));
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+// SpiBus + GPIO, waiting, 看那个spi模块的crate用SpiBus, 先测 mipidsi crate
