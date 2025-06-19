@@ -9,6 +9,7 @@ embassy-hal-internal = "0.2.0"
 embedded-hal = "1.0.0"
 # For backward compatibility only.
 embedded-hal-027 = { package = "embedded-hal", version = "0.2.7", features = ["unproven"] }
+env_logger = "0.11.8"
 log = "0.4.27"
 nusb = "0.1.14"
 smol = "2.0.2"

@@ -5,7 +5,7 @@ use embassy_hal_internal::Peripheral;
 use crate::ch347;
 
 pub mod instance {
-    use crate::{ch347, format_u8_array};
+    use crate::ch347;
     pub trait Instance {
         fn write_with_address(address: u8, buf: &[u8]) {
             let mut obuf = vec![address << 1];

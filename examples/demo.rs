@@ -1,25 +1,17 @@
-use ch347_rs::{
-    ch347,
-    i2c::{Config, I2cbus},
-};
+use ch347_rs::{ch347, format_u8_array, spi::instance::Instance};
+
+pub struct SPI;
+impl Instance for SPI {}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let p = ch347::init().unwrap();
-    let mut buf = [0; 16];
-    // ch347::write(&[0xAA, 0x74, 0x81, 0x3C << 1, 0x75, 0x00]).unwrap();
-    ch347::write(&[
-        0xE2, 0x08, 0x00, 0x00, 0x00, 0x81, 0x81, 0x00, 0x00, 0x00, 0x00,
-    ])
-    .unwrap();
-    ch347::read(&mut buf).unwrap();
-    println!("{:?}", &buf);
+    env_logger::init();
+    let _p = ch347::init().unwrap();
+    SPI::set_config(Default::default());
 
-    ch347::write(&[
-        0xaa, 0x74, 0x89, 0x78, 0x40, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x75, 0x00,
-    ])
-    .unwrap();
-    ch347::read(&mut buf).unwrap();
-    println!("{:?}", &buf);
+    let mut ibuf = [0; 4];
+    let obuf = [0xAA, 0xBB, 0xCC, 0xDD];
+    SPI::write_and_read(&mut ibuf, &obuf);
+    println!("rev: {}", format_u8_array(&ibuf));
 
     Ok(())
 }
