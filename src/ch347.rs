@@ -56,6 +56,7 @@ pub fn write(buf: &[u8]) -> Result<(), Error> {
 
         Ok(())
     } else {
+        log::info!("Can't get ch347 device");
         Err(Error::Tx)
     }
 }
@@ -69,6 +70,8 @@ pub fn read(buf: &mut [u8]) -> Result<usize, Error> {
 
         Ok(rev)
     } else {
+        log::info!("Can't get ch347 device");
+
         Err(Error::Rx)
     }
 }

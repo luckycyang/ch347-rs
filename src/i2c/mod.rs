@@ -52,7 +52,9 @@ pub mod instance {
 
         fn read_with_address(address: u8, buf: &mut [u8]) {
             // 读取时序是发送读i2c从机地址和寄存器地址，然后接受
-            let mut ibuf = Vec::with_capacity(1 + buf.len());
+            // 反正一次最多接收63字节
+            let mut ibuf = [0; 64];
+
             let command = vec![
                 0xAA,
                 0x74,
@@ -62,12 +64,10 @@ pub mod instance {
                 0x75,
                 0x00,
             ];
-            log::info!("i2c usb write: {}", format_u8_array(&command));
             ch347::write(&command).unwrap();
             let rev = ch347::read(&mut ibuf).unwrap();
-            assert_eq!(rev, ibuf.len()); // 1 个 ACK + 数据接收
-            log::info!("i2c usb read: {}", format_u8_array(&ibuf[..rev]));
-            buf.copy_from_slice(&ibuf[1..]);
+            // assert_eq!(rev, ibuf.len()); // 1 个 ACK + 数据接收
+            buf.copy_from_slice(&ibuf[1..rev]);
         }
     }
 }
