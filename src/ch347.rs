@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use nusb::{DeviceInfo, Interface};
 
+use crate::format_u8_array;
 use crate::hal;
 use crate::hal::Peripherals;
 
@@ -51,6 +52,8 @@ pub fn write(buf: &[u8]) -> Result<(), Error> {
         device
             .write_bulk(0x06, buf, Duration::from_millis(500))
             .map_err(|_| Error::Tx)?;
+        log::info!("i2c usb write: {}", format_u8_array(buf));
+
         Ok(())
     } else {
         Err(Error::Tx)
@@ -62,6 +65,8 @@ pub fn read(buf: &mut [u8]) -> Result<usize, Error> {
         let rev = device
             .read_bulk(0x86, buf, Duration::from_millis(1000))
             .map_err(|_| Error::Rx)?;
+        log::info!("i2c usb read: {}", format_u8_array(&buf[..rev]));
+
         Ok(rev)
     } else {
         Err(Error::Rx)

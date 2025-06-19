@@ -41,11 +41,9 @@ pub mod instance {
                 }
                 command.push(0x00);
 
-                log::info!("i2c usb write: {}", format_u8_array(&command));
                 ch347::write(&command).unwrap();
 
-                let rev = ch347::read(&mut ibuf).unwrap();
-                log::info!("i2c usb read: {}", format_u8_array(&ibuf[..rev]));
+                let _rev = ch347::read(&mut ibuf).unwrap();
 
                 ptr += wlen;
                 left -= wlen;
