@@ -61,13 +61,15 @@ pub mod instance {
         fn write(buf: &[u8]) {
             let mut left = buf.len();
             let mut ptr = 0;
-            let mut obuf = [0; 4096];
+            let mut obuf = [0; 510];
             let mut ibuf = [0; 4];
             obuf[0] = 0xC4;
             while left > 0 {
-                let wlen = left.min(4093);
+                // 事实证明，发送也不能超过 507, 否则直接暴毙
+                let wlen = left.min(507);
                 obuf[1] = ((wlen as u16) & 0x00FF) as u8;
                 obuf[2] = ((wlen as u16) >> 8) as u8;
+                log::info!("write: {} bytes, low: {}, high: {}", wlen, obuf[1], obuf[2]);
 
                 let chunk = &buf[ptr..ptr + wlen];
                 (&mut obuf[3..3 + wlen]).copy_from_slice(chunk);
@@ -158,9 +160,9 @@ pub enum BitOrder {
 
 /// speed is (60 * 1000 * 1000) >> speed, as 0: 60M, 1: 30M
 pub struct Config {
-    speed: u16,
-    mode: Mode,
-    bit_order: BitOrder,
+    pub speed: u16,
+    pub mode: Mode,
+    pub bit_order: BitOrder,
 }
 
 impl Default for Config {
