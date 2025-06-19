@@ -1,3 +1,9 @@
+use std::marker::PhantomData;
+
+use embassy_hal_internal::Peripheral;
+
+use crate::hal::{self};
+
 pub mod instance {
     use crate::{
         ch347, format_u8_array,
@@ -126,6 +132,10 @@ pub mod instance {
     }
 }
 
+impl instance::Instance for hal::peripherals::SPI0 {}
+pub trait Instance: Peripheral<P = Self> + instance::Instance + 'static + Send {}
+impl Instance for hal::peripherals::SPI0 {}
+
 #[derive(Debug, PartialEq, PartialOrd)]
 pub enum CSPin {
     CS0,
@@ -229,3 +239,38 @@ impl From<Config> for Ch347SpiConfig {
         cfg
     }
 }
+
+/// SPI 与部分 GPIO 复用, 后续再说
+/// SpiDevice 额外具有 CS
+pub struct SpiDevice<'d, T: Instance> {
+    _spi: PhantomData<&'d T>,
+}
+
+impl<'d, T: Instance> SpiDevice<'d, T> {
+    pub fn new(config: Config) -> Self {
+        T::set_config(config);
+        Self { _spi: PhantomData }
+    }
+
+    pub fn write(&self, buf: &[u8]) {
+        T::cs_write(CSPin::CS0, false);
+        T::write(buf);
+        T::cs_write(CSPin::CS0, true);
+    }
+
+    pub fn read(&self, buf: &mut [u8]) {
+        T::cs_write(CSPin::CS0, false);
+        T::read(buf);
+        T::cs_write(CSPin::CS0, true);
+    }
+
+    pub fn write_and_read(ibuf: &mut [u8], obuf: &[u8]) {
+        T::cs_write(CSPin::CS0, false);
+        T::write_and_read(ibuf, obuf);
+        T::cs_write(CSPin::CS0, true);
+    }
+}
+
+// SpiBus 是 SCK, MISO, MOSI
+// 目前未实现 embedded_hal
+// 先使用普通接口
