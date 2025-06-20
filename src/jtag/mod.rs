@@ -41,8 +41,16 @@ pub mod builder {
 
     // 通用方法实现
     impl<S: JtagState> JtagCtrlBuilder<S> {
-        pub fn init(self) -> Vec<u8> {
-            self.buf
+        // 去除 buf， 并返回当前状态, 主要用于继续调试
+        pub fn init(self) -> (Self, Vec<u8>) {
+            let (p, data) = (self._phantom, self.buf);
+            (
+                Self {
+                    buf: Vec::new(),
+                    _phantom: p,
+                },
+                data,
+            )
         }
 
         // 重置到Reset状态
