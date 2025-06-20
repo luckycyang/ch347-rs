@@ -5,6 +5,7 @@ pub mod command;
 pub mod gpio;
 pub mod hal;
 pub mod i2c;
+pub mod jtag;
 pub mod spi;
 
 pub fn format_u8_array(arr: &[u8]) -> String {
