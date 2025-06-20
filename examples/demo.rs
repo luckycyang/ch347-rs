@@ -1,32 +1,37 @@
-use ch347_rs::{ch347, format_u8_array, jtag::builder};
+use ch347_rs::{
+    ch347,
+    jtag::builder::{self, Builder},
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let mut ibuf = [0; 128];
-    let p = ch347::init();
-    let (s, b) = builder::Builder::new()
+    let _p = ch347::init();
+    let mut buf: Vec<u8> = Vec::new();
+
+    let mut idcode = 0;
+
+    let mut jtag_state = Builder::new()
         .reset()
         .enter_idle()
         .enter_shiftir()
         .trans_bits((&[0b1111_1110, 0b01], 9))
-        .enter_idle()
-        .init();
+        .enter_idle();
 
-    let mut buf = vec![0xD2, b.len() as u8, 0x00];
-    buf.extend_from_slice(&b[..]);
-    ch347::write(&buf).unwrap();
-    ch347::read(&mut ibuf);
+    jtag_state.update(&mut buf);
+    let mut buf: Vec<u8> = Vec::new();
 
-    let (s, b) = s
+    let mut jtag_state = jtag_state
         .enter_shiftdr()
-        .trans_bits((&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF], 33))
-        .enter_idle()
-        .init();
+        .trans_bits((&[0xff, 0xff, 0xff, 0xff, 0xff], 33))
+        .enter_idle();
+    jtag_state.update(&mut buf);
 
-    let mut buf = vec![0xD2, b.len() as u8, 0x00];
-    buf.extend_from_slice(&b[..]);
-    ch347::write(&buf).unwrap();
-    ch347::read(&mut ibuf);
+    for i in 0..32 {
+        idcode = idcode | (u32::from(buf[i]) << i);
+    }
+
+    println!("read idcode: 0x{:08X}", idcode);
 
     Ok(())
 }

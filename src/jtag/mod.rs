@@ -1,13 +1,22 @@
-/// Clock 为一个时钟, Idle 是半个时钟并维持tms信号
+/// Clock 为一个时钟
+/// 或许我们需要半周期的 Idle
+#[derive(Clone, Copy)]
 pub enum Command {
-    Idle { tms: bool },
     Clock { tms: bool, tdi: bool, capture: bool },
 }
 
-pub mod builder {
-    use std::marker::PhantomData;
+impl From<Command> for u8 {
+    fn from(value: Command) -> Self {
+        let Command::Clock { tms, tdi, capture } = value;
+        (u8::from(tms) << 1) | (u8::from(tdi) << 4)
+    }
+}
 
-    use crate::jtag::builder;
+pub mod builder {
+    use super::Command;
+    use std::{fmt::write, marker::PhantomData};
+
+    use crate::{ch347, i2c::Config, jtag::builder};
 
     pub struct Unknown;
     pub struct Reset;
@@ -35,22 +44,45 @@ pub mod builder {
 
     // Builder结构体，使用幽灵数据来跟踪状态
     pub struct JtagCtrlBuilder<S: JtagState> {
-        pub buf: Vec<u8>,
+        pub buf: Vec<Command>,
         _phantom: std::marker::PhantomData<S>,
     }
 
     // 通用方法实现
     impl<S: JtagState> JtagCtrlBuilder<S> {
-        // 去除 buf， 并返回当前状态, 主要用于继续调试
-        pub fn init(self) -> (Self, Vec<u8>) {
-            let (p, data) = (self._phantom, self.buf);
-            (
-                Self {
-                    buf: Vec::new(),
-                    _phantom: p,
-                },
-                data,
-            )
+        fn add_command(&mut self, command: Command) {
+            self.buf.push(command);
+        }
+
+        pub fn update(&mut self, ibuf: &mut Vec<u8>) {
+            let len = self.buf.len();
+            let mut buffer = [0; 256];
+            let mut obuf = vec![0xD2];
+            let buf = (&self.buf)
+                .iter()
+                .fold(Vec::with_capacity(len * 2), |mut acc, &x| {
+                    let byte = u8::from(x);
+                    acc.push(byte);
+                    acc.push(byte | 0x01);
+                    acc
+                });
+            log::info!("command len: {}, obuf len: {}", len, len * 2);
+
+            // maybe data len dont over 127
+            obuf.push(buf.len() as u8);
+            obuf.push(0);
+            obuf.extend_from_slice(&buf);
+            ch347::write(&obuf).unwrap();
+            ch347::read(&mut buffer).unwrap();
+
+            for (&c, &b) in self.buf.iter().zip(&buffer[3..]) {
+                let Command::Clock { tms, tdi, capture } = c;
+                if capture {
+                    ibuf.push(b);
+                }
+            }
+            // 清楚命令
+            self.buf.clear();
         }
 
         // 重置到Reset状态
@@ -58,20 +90,16 @@ pub mod builder {
         pub fn reset(self) -> JtagCtrlBuilder<Reset> {
             let mut buf = self.buf;
             for _ in 0..5 {
-                (&mut buf).extend_from_slice(&[0x02, 0x03]);
+                (&mut buf).push(Command::Clock {
+                    tms: true,
+                    tdi: true,
+                    capture: false,
+                });
             }
             JtagCtrlBuilder {
                 buf: buf,
                 _phantom: std::marker::PhantomData,
             }
-        }
-
-        // 写入单个bit
-        pub fn shift_bit(mut self, tms: bool, tdi: bool) -> Self {
-            let left = (u8::from(tms) << 1) | (u8::from(tdi) << 4);
-            let right = left | 0x01;
-            let _ = &mut self.buf.extend_from_slice(&[left, right]);
-            self
         }
     }
 
@@ -83,8 +111,11 @@ pub mod builder {
                 _phantom: std::marker::PhantomData,
             };
             // 从Reset到Idle需要TMS=0
-            builder.buf.push(0x00);
-            builder.buf.push(0x01);
+            builder.buf.push(Command::Clock {
+                tms: false,
+                tdi: true,
+                capture: false,
+            });
             builder
         }
     }
@@ -97,9 +128,20 @@ pub mod builder {
                 _phantom: std::marker::PhantomData,
             };
             // 从Idle到ShiftIR需要TMS=1,1,0,0
-            builder
-                .buf
-                .extend_from_slice(&[0x02, 0x03, 0x02, 0x03, 0x00, 0x01, 0x00, 0x01]);
+            for _ in 0..2 {
+                builder.buf.push(Command::Clock {
+                    tms: true,
+                    tdi: true,
+                    capture: false,
+                });
+            }
+            for _ in 0..2 {
+                builder.buf.push(Command::Clock {
+                    tms: false,
+                    tdi: true,
+                    capture: false,
+                });
+            }
             builder
         }
 
@@ -109,9 +151,18 @@ pub mod builder {
                 _phantom: std::marker::PhantomData,
             };
             // 从Idle到ShiftDR需要TMS=1,0,0
-            builder
-                .buf
-                .extend_from_slice(&[0x02, 0x03, 0x00, 0x01, 0x00, 0x01]);
+            builder.buf.push(Command::Clock {
+                tms: true,
+                tdi: false,
+                capture: false,
+            });
+            for _ in 0..2 {
+                builder.buf.push(Command::Clock {
+                    tms: false,
+                    tdi: true,
+                    capture: false,
+                });
+            }
             builder
         }
     }
@@ -135,22 +186,40 @@ pub mod builder {
                         break;
                     }
 
-                    let byte = if (((i >> j) & 0x01) == 0x01) {
-                        0x10
+                    let byte = if ((i >> j) & 0x01) == 0x01 {
+                        Command::Clock {
+                            tms: false,
+                            tdi: true,
+                            capture: true,
+                        }
                     } else {
-                        0x00
+                        Command::Clock {
+                            tms: false,
+                            tdi: false,
+                            capture: true,
+                        }
                     };
-                    buf.push(byte | 0x00);
-                    buf.push(byte | 0x01);
+                    buf.push(byte);
 
                     left -= 1;
                 }
             }
 
             // last bit and enter exit tap
-            let byte = if last == 0x01 { 0x10 } else { 0x00 };
-            buf.push(byte | 0x02);
-            buf.push(byte | 0x03);
+            let byte = if last == 0x01 {
+                Command::Clock {
+                    tms: true,
+                    tdi: true,
+                    capture: true,
+                }
+            } else {
+                Command::Clock {
+                    tms: true,
+                    tdi: false,
+                    capture: true,
+                }
+            };
+            buf.push(byte);
 
             JtagCtrlBuilder {
                 buf,
@@ -167,7 +236,16 @@ pub mod builder {
                 _phantom: std::marker::PhantomData,
             };
             // 从Exit到Idle需要TMS=1,0
-            builder.buf.extend_from_slice(&[0x02, 0x03, 0x00, 0x01]);
+            builder.buf.push(Command::Clock {
+                tms: true,
+                tdi: true,
+                capture: false,
+            });
+            builder.buf.push(Command::Clock {
+                tms: false,
+                tdi: true,
+                capture: false,
+            });
             builder
         }
     }
