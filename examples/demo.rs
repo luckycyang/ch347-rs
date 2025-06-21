@@ -1,5 +1,5 @@
 use ch347_rs::{
-    ch347,
+    ch347, format_u8_array,
     jtag::builder::{self, Builder},
 };
 
@@ -15,11 +15,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .reset()
         .enter_idle()
         .enter_shiftir()
-        .trans_bits((&[0b1111_1110, 0b01], 9))
+        .trans_bits((&[0xff, 0xff, 0x7f, 0xff], 32))
         .enter_idle();
 
     jtag_state.update(&mut buf);
-    let mut buf: Vec<u8> = Vec::new();
+    println!("sshift ir rev: {}", format_u8_array(&buf));
+    buf.clear();
 
     let mut jtag_state = jtag_state
         .enter_shiftdr()
@@ -30,8 +31,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in 0..32 {
         idcode = idcode | (u32::from(buf[i]) << i);
     }
-
     println!("read idcode: 0x{:08X}", idcode);
+    buf.clear();
+
+    let mut jtag_state = Builder::new()
+        .reset()
+        .enter_idle()
+        .enter_shiftir()
+        .trans_bits((&[0xff, 0xff, 0xff, 0xff], 32))
+        .enter_idle();
+
+    jtag_state.update(&mut buf);
+    println!("sshift ir rev: {}", format_u8_array(&buf));
+    buf.clear();
 
     Ok(())
 }
