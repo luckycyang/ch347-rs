@@ -50,13 +50,13 @@ pub mod builder {
 
     // 通用方法实现
     impl<S: JtagState> JtagCtrlBuilder<S> {
-        fn add_command(&mut self, command: Command) {
+        pub fn add_command(&mut self, command: Command) {
             self.buf.push(command);
         }
 
         pub fn update(&mut self, ibuf: &mut Vec<u8>) {
             let len = self.buf.len();
-            let mut buffer = [0; 256];
+            let mut buffer = [0; 4096];
             let mut obuf = vec![0xD2];
             let buf = (&self.buf)
                 .iter()
@@ -76,7 +76,7 @@ pub mod builder {
             ch347::read(&mut buffer).unwrap();
 
             for (&c, &b) in self.buf.iter().zip(&buffer[3..]) {
-                let Command::Clock { tms, tdi, capture } = c;
+                let Command::Clock { capture, .. } = c;
                 if capture {
                     ibuf.push(b);
                 }
@@ -169,7 +169,7 @@ pub mod builder {
 
     // Shift状态的特定实现
     impl JtagCtrlBuilder<Shift> {
-        pub fn trans_bits(self, data: (&[u8], u8)) -> JtagCtrlBuilder<Exit> {
+        pub fn trans_bits(self, data: (&[u8], u32)) -> JtagCtrlBuilder<Exit> {
             let mut buf = self.buf;
             let mut left = data.1;
             let mut last = 0x00;

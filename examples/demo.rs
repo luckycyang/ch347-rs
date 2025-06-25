@@ -5,17 +5,21 @@ use ch347_rs::{
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
-    let mut ibuf = [0; 128];
     let _p = ch347::init();
     let mut buf: Vec<u8> = Vec::new();
 
     let mut idcode = 0;
 
+    let obuf = [
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff,
+    ];
+
     let mut jtag_state = Builder::new()
         .reset()
         .enter_idle()
         .enter_shiftir()
-        .trans_bits((&[0xff, 0xff, 0x7f, 0xff], 32))
+        .trans_bits((&obuf, 115))
         .enter_idle();
 
     jtag_state.update(&mut buf);
