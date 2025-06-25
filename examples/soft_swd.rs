@@ -130,6 +130,58 @@ impl<'a, U: OutputPin> Swd<'a, U> {
             "ack: {:#03b}, idcode: {:#08x}, parity: {}",
             ack, idcode, parity
         );
+        // 通常来说 8  个idle, 确保下个 start 能正常开始
+        self.idle();
+
+        let command = 0b10100101;
+
+        for i in 0..8 {
+            self.shift_bit(command >> i & 0x01 == 0x01);
+        }
+
+        // tn
+        self.trans_input();
+        self.clk.set_low().unwrap();
+        delay(1);
+        self.clk.set_high().unwrap();
+        delay(1);
+        self.clk.set_low().unwrap();
+
+        let mut ack = 0u8;
+        let mut idcode = 0u32;
+        let mut parity = false;
+
+        for i in 0..3 {
+            self.clk.set_low().unwrap();
+            delay(1);
+            self.clk.set_high().unwrap();
+            delay(1);
+            let rev = self.swdio.is_high().unwrap();
+            if rev {
+                ack = ack | (0x01 << i);
+            }
+        }
+        for i in 0..32 {
+            self.clk.set_low().unwrap();
+            delay(1);
+            self.clk.set_high().unwrap();
+            delay(1);
+            let rev = self.swdio.is_high().unwrap();
+            if rev {
+                idcode = idcode | (0x01 << i);
+            }
+        }
+        self.clk.set_low().unwrap();
+        delay(1);
+        self.clk.set_high().unwrap();
+        delay(1);
+        parity = self.swdio.is_high().unwrap();
+        self.clk.set_low().unwrap();
+
+        println!(
+            "ack: {:#03b}, idcode: {:#08x}, parity: {}",
+            ack, idcode, parity
+        );
     }
 }
 
