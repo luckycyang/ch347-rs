@@ -1,7 +1,7 @@
 use std::{process::id, str::RSplitN, thread::sleep, time::Duration};
 
 use ch347_rs::{
-    ch347,
+    ch347, command,
     gpio::{Flex, Output, types::PinState},
 };
 use embedded_hal::digital::{InputPin, OutputPin};
@@ -67,7 +67,18 @@ impl<'a, U: OutputPin> Swd<'a, U> {
 
     pub fn read_idcode(&mut self) {
         self.trans_output();
+
+        // jtag 2 swd
         self.reset();
+        let bits = 0xE79Eu16;
+        for i in 0..16 {
+            self.shift_bit(bits >> i & 0x01 == 0x01);
+        }
+        self.reset();
+
+        // 50 以上的高电平会进入复位
+        self.reset();
+        // 通常来说 8  个idle, 确保下个 start 能正常开始
         self.idle();
 
         let command = 0b10100101;
@@ -116,7 +127,7 @@ impl<'a, U: OutputPin> Swd<'a, U> {
         self.clk.set_low().unwrap();
 
         println!(
-            "ack: {:#03x}, idcode: {:#08x}, parity: {}",
+            "ack: {:#03b}, idcode: {:#08x}, parity: {}",
             ack, idcode, parity
         );
     }
