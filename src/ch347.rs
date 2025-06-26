@@ -52,7 +52,7 @@ pub fn write(buf: &[u8]) -> Result<(), Error> {
         device
             .write_bulk(0x06, buf, Duration::from_millis(5000))
             .map_err(|_| Error::Tx)?;
-        log::info!("i2c usb write: {}", format_u8_array(buf));
+        log::info!("usb write: {}", format_u8_array(buf));
 
         Ok(())
     } else {
@@ -66,7 +66,7 @@ pub fn read(buf: &mut [u8]) -> Result<usize, Error> {
         let rev = device
             .read_bulk(0x86, buf, Duration::from_millis(5000))
             .map_err(|_| Error::Rx)?;
-        log::info!("i2c usb read: {}", format_u8_array(&buf[..rev]));
+        log::info!("usb read: {}", format_u8_array(&buf[..rev]));
 
         Ok(rev)
     } else {
