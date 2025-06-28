@@ -2,7 +2,7 @@ use std::{process::id, str::RSplitN, thread::sleep, time::Duration};
 
 use ch347_rs::{
     ch347, command,
-    gpio::{Flex, Output, types::PinState},
+    gpio::{Flex, Input, Output, types::PinState},
 };
 use embedded_hal::digital::{InputPin, OutputPin};
 
@@ -38,7 +38,6 @@ impl<'a, U: OutputPin> Swd<'a, U> {
             delay(1);
         }
         delay(1);
-        self.clk.set_low().unwrap();
     }
 
     pub fn idle(&mut self) {
@@ -48,21 +47,20 @@ impl<'a, U: OutputPin> Swd<'a, U> {
             self.clk.set_low().unwrap();
             delay(1);
             self.clk.set_high().unwrap();
+            delay(1);
         }
-        self.clk.set_low().unwrap();
     }
 
     pub fn shift_bit(&mut self, bit: bool) {
-        self.clk.set_low().unwrap();
         if bit {
             self.swdio.set_high().unwrap();
         } else {
             self.swdio.set_low().unwrap();
         };
+        self.clk.set_low().unwrap();
         delay(1);
         self.clk.set_high().unwrap();
         delay(1);
-        self.clk.set_low().unwrap();
     }
 
     pub fn read_idcode(&mut self) {
@@ -188,10 +186,19 @@ impl<'a, U: OutputPin> Swd<'a, U> {
 fn main() {
     env_logger::init();
     let p = ch347::init().unwrap();
-    let swdio = Flex::new(p.IO1);
-    let clk = Output::new(p.IO2);
+    let mut buf = [0; 128];
+    ch347::write(&[
+        0xE5, 0x08, 0x00, 0x40, 0x42, 0x0f, 0x00, 0, 0x00, 0x00, 0x00,
+    ])
+    .unwrap();
+    ch347::read(&mut buf).unwrap();
 
-    let mut swd = Swd::new(swdio, clk);
-    swd.reset();
-    swd.read_idcode();
+    ch347::write(&[
+        0xE8, 10, 0x00, 0xA1, 56, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f,
+    ])
+    .unwrap();
+    ch347::read(&mut buf).unwrap();
+
+    ch347::write(&[0xE8, 4, 0x00, 0xA2, 0x22, 0x00, 0xA5]).unwrap();
+    ch347::read(&mut buf).unwrap();
 }
