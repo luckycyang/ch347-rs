@@ -7,7 +7,7 @@ fn main() {
     let mut buf = [0; 128];
 
     // init swd
-    ch347::write(&[0xE5, 8, 0, 0x40, 0x42, 0x0f, 0x00, 0, 0x00, 0x00, 0x00]).unwrap();
+    ch347::write(&[0xE5, 8, 0, 0x40, 0x42, 0x0f, 0x00, 7, 0x00, 0x00, 0x00]).unwrap();
     ch347::read(&mut buf).unwrap();
 
     // reset and enter idle
