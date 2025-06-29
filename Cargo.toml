@@ -29,3 +29,7 @@ path = "examples/idcode_swd.rs"
 [[example]]
 name = "soft_swd"
 path = "examples/soft_swd.rs"
+
+[[example]]
+name = "idcode_stm32"
+path = "examples/idcode_stm32.rs"
