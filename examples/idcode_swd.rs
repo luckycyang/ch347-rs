@@ -1,7 +1,4 @@
-use std::thread::spawn;
-
-use ch347_rs::{Delay, ch347, gpio::Output};
-use embedded_hal::{delay::DelayNs, digital::OutputPin};
+use ch347_rs::ch347;
 
 fn main() {
     env_logger::init();
@@ -13,8 +10,16 @@ fn main() {
     ch347::write(&[0xE5, 8, 0, 0x40, 0x42, 0x0f, 0x00, 0, 0x00, 0x00, 0x00]).unwrap();
     ch347::read(&mut buf).unwrap();
 
+    // reset and enter idle
+    ch347::write(&[
+        0xE8, 10, 0x00, 0xA1, 56, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f,
+    ])
+    .unwrap();
+    ch347::read(&mut buf).unwrap();
+
     // read idcode
-    let obuf = [0xE8, 0x04, 0x00, 0xA2, 0x22, 0x00, 0x81];
+    // 校验位为 Apndp RnW A[3:2] 的偶校验，也可以说是对 [4:0] 的奇校验
+    let obuf = [0xE8, 0x04, 0x00, 0xA2, 0x22, 0x00, 0b10100101];
     ch347::write(&obuf).unwrap();
     ch347::read(&mut buf).unwrap();
 
