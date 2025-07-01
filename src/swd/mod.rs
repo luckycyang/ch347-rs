@@ -98,6 +98,56 @@ impl SwdCommandSeq {
         ch347::write(&obuf).unwrap();
         ch347::read(&mut ibuf).unwrap();
     }
+
+    pub fn reset(&self) {
+        self.seq(&[0xff; 7]);
+    }
+
+    pub fn idle(&self) {
+        self.seq(&[0; 1]);
+    }
+
+    pub fn reset_and_idle(&self) {
+        self.reset();
+        self.idle();
+    }
+
+    pub fn jtag_to_swd(&self) {
+        self.reset();
+        self.seq(&(0xE79Eu16).to_le_bytes());
+        self.reset();
+    }
+
+    pub fn read_ap_reg(&self, address: u8) -> Result<u32, Box<dyn std::error::Error>> {
+        let commmand = SubCommand::RegR {
+            address,
+            is_dp: false,
+        };
+        let obuf = [0xE8, 4, 0, 0xA2, 0x22, 0, u8::from(commmand)];
+        let mut ibuf = [0; 10];
+        ch347::write(&obuf).unwrap();
+        ch347::read(&mut ibuf).unwrap();
+        let rev = u32::from(ibuf[5])
+            | u32::from(ibuf[6]) << 8
+            | u32::from(ibuf[7]) << 16
+            | u32::from(ibuf[8]) << 24;
+        Ok(rev)
+    }
+    pub fn read_dp_reg(&self, address: u8) -> Result<u32, Box<dyn std::error::Error>> {
+        let commmand = SubCommand::RegR {
+            address,
+            is_dp: true,
+        };
+        let obuf = [0xE8, 4, 0, 0xA2, 0x22, 0, u8::from(commmand)];
+        let mut ibuf = [0; 10];
+        ch347::write(&obuf).unwrap();
+        ch347::read(&mut ibuf).unwrap();
+        let rev = u32::from(ibuf[5])
+            | u32::from(ibuf[6]) << 8
+            | u32::from(ibuf[7]) << 16
+            | u32::from(ibuf[8]) << 24;
+        Ok(rev)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -156,10 +206,6 @@ impl From<SubCommand> for u8 {
         let c = if count % 2 != 0 { c | 0x20 } else { c };
         c
     }
-}
-
-pub struct Swd {
-    obuf: SubCommand,
 }
 
 // Init
