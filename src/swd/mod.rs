@@ -148,6 +148,43 @@ impl SwdCommandSeq {
             | u32::from(ibuf[8]) << 24;
         Ok(rev)
     }
+
+    fn write_reg(&self, address: u8, is_dp: bool, data: u32) -> Result<(), ()> {
+        let command = SubCommand::RegW {
+            address,
+            is_dp,
+            data,
+        };
+        let mut obuf = vec![0xE8, 9, 0x00];
+        let mut ibuf = [0; 5];
+        // 对 data 进行校验
+        let mut count = 0u8;
+        for i in 0..32 {
+            if data >> i & 0x01 == 0x01 {
+                count += 1;
+            }
+        }
+        obuf.extend_from_slice(&[0xA0, 0x29, 0x00]);
+        obuf.push(u8::from(command));
+        obuf.extend_from_slice(&(data.to_le_bytes()));
+        log::info!("data: {:#08x}, with parity: {}", data, count % 2);
+        obuf.push(count % 2);
+        ch347::write(&obuf).unwrap();
+        ch347::read(&mut ibuf).unwrap();
+
+        // check ack
+        // TODO
+        Ok(())
+    }
+
+    pub fn write_ap_reg(&self, address: u8, data: u32) -> Result<(), ()> {
+        self.write_reg(address, false, data)?;
+        Ok(())
+    }
+    pub fn write_dp_reg(&self, address: u8, data: u32) -> Result<(), ()> {
+        self.write_reg(address, true, data)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
