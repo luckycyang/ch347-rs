@@ -33,3 +33,7 @@ path = "examples/soft_swd.rs"
 [[example]]
 name = "idcode_stm32"
 path = "examples/idcode_stm32.rs"
+
+[[example]]
+name = "ap_idr"
+path = "examples/ap_idr.rs"
