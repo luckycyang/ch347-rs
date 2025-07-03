@@ -235,7 +235,7 @@ impl From<SubCommand> for u8 {
             }
         };
         let mut count = 0;
-        for i in 1..4 {
+        for i in 1..=4 {
             if c >> i & 0x01 == 0x01 {
                 count += 1;
             }
