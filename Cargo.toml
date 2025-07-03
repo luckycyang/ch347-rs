@@ -17,3 +17,23 @@ smol = "2.0.2"
 [[example]]
 name = "demo"
 path = "examples/demo.rs"
+
+[[example]]
+name = "find_interface"
+path = "examples/find_interface.rs"
+
+[[example]]
+name = "idcode_swd"
+path = "examples/idcode_swd.rs"
+
+[[example]]
+name = "soft_swd"
+path = "examples/soft_swd.rs"
+
+[[example]]
+name = "idcode_stm32"
+path = "examples/idcode_stm32.rs"
+
+[[example]]
+name = "ap_idr"
+path = "examples/ap_idr.rs"

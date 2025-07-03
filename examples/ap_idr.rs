@@ -3,7 +3,7 @@ use ch347_rs::ch347;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let _p = ch347::init();
-    let mut swd = ch347_rs::swd::SwdCommandSeq::new(3);
+    let swd = ch347_rs::swd::SwdCommandSeq::new(3);
     swd.reset();
     swd.jtag_to_swd();
     swd.reset_and_idle();
@@ -22,9 +22,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     swd.write_dp_reg(2, 0x0f0).unwrap();
 
     println!("first read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
+    // 对于 AP 而言， 读的结果在下条指令返回
+    // println!("second read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
 
+    // 或者读 RDBUFF 0x0C
+    swd.write_dp_reg(2, 0x00).unwrap();
     println!("second read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
-    println!("third read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
 
     Ok(())
 }
