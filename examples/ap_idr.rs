@@ -10,15 +10,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("id code: {:#08x}", swd.read_dp_reg(00).unwrap());
 
     // write abort for clear err
+    println!("write dp 0");
     swd.write_dp_reg(0, 0x01e).unwrap();
 
     // enable debug port
+    println!("write dp 1");
     swd.write_dp_reg(1, 0x50000000).unwrap();
 
     // check, value like 0xF0000000;
+    println!("read dp 1");
     println!("CTRL/STAT: {:#08x}", swd.read_dp_reg(1).unwrap());
 
     // write dp select to select MEM-AP and bank 0xF include IDR Reg
+    println!("write dp 2");
     swd.write_dp_reg(2, 0x0f0).unwrap();
 
     println!("first read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());

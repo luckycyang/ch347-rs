@@ -15,8 +15,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // enable debug port
     swd.write_dp_reg(1, 0x50000000).unwrap();
 
-    swd.write_dp_reg(2, 0).unwrap();
-
     // check, value like 0xF0000000;
     println!("CTRL/STAT: {:#08x}", swd.read_dp_reg(1).unwrap());
 
@@ -24,11 +22,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     swd.write_dp_reg(2, 0x0f0).unwrap();
 
     println!("first read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
+    println!("DP RDBUUF: {:#08x}", swd.read_dp_reg(3).unwrap());
 
-    println!("second read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
-    println!("third read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
+    // ready to read ap CSW(0x00)
+    println!("ready to read ap CSW(0x00)");
+    swd.write_dp_reg(2, 0x0).unwrap();
+    println!("first raed ap CSW: {:#08x}", swd.read_ap_reg(0).unwrap());
+    println!("read RDBUFF: {:#08x}", swd.read_dp_reg(3).unwrap());
+    println!("second read ap CSW: {:#08x}", swd.read_ap_reg(0).unwrap());
+    println!("read dp RESEND(0x8): {:#08x}", swd.read_dp_reg(2).unwrap());
 
-    println!("DP addr 4: {:#08x}", swd.read_dp_reg(1).unwrap());
+    // write CSW
+    println!("write CSW and read");
+    swd.write_dp_reg(2, 0x0).unwrap();
+    swd.write_ap_reg(0x0, 0xeb000052).unwrap();
+    println!("first read CSW: {:#08x}", swd.read_ap_reg(0).unwrap());
+    println!("read RDBUFF: {:#08x}", swd.read_dp_reg(3).unwrap());
 
     Ok(())
 }
