@@ -15,6 +15,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // enable debug port
     swd.write_dp_reg(1, 0x50000000).unwrap();
 
+    swd.write_dp_reg(2, 0).unwrap();
+
     // check, value like 0xF0000000;
     println!("CTRL/STAT: {:#08x}", swd.read_dp_reg(1).unwrap());
 
@@ -25,6 +27,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("second read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
     println!("third read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
+
+    println!("DP addr 4: {:#08x}", swd.read_dp_reg(1).unwrap());
 
     Ok(())
 }

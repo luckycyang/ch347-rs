@@ -23,11 +23,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("first read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
     // 对于 AP 而言， 读的结果在下条指令返回
-    // println!("second read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
+    println!("second read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
 
     // 或者读 RDBUFF 0x0C
-    swd.write_dp_reg(2, 0x00).unwrap();
-    println!("second read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
+    // swd.write_dp_reg(2, 0x00).unwrap();
+    // println!("second read IDR: {:#08x}", swd.read_ap_reg(3).unwrap());
 
     Ok(())
 }
