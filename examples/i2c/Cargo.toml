@@ -1,0 +1,12 @@
+[package]
+name = "i2c"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ch347-rs = { path = "../.." }
+embedded-hal = "1.0.0"
+embedded-hal-027 = { package = "embedded-hal", version = "0.2.7", features = ["unproven"] }
+env_logger = "0.11.8"
+mpu6050 = "0.1.6"
+ssd1306 = "0.10.0"

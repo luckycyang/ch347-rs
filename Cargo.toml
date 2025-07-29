@@ -1,0 +1,39 @@
+[package]
+name = "ch347-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+critical-section = { version = "1.2.0", features = ["std"] }
+embassy-hal-internal = "0.2.0"
+embedded-hal = "1.0.0"
+# For backward compatibility only.
+embedded-hal-027 = { package = "embedded-hal", version = "0.2.7", features = ["unproven"] }
+env_logger = "0.11.8"
+log = "0.4.27"
+nusb = "0.1.14"
+smol = "2.0.2"
+
+[[example]]
+name = "demo"
+path = "examples/demo.rs"
+
+[[example]]
+name = "find_interface"
+path = "examples/find_interface.rs"
+
+[[example]]
+name = "idcode_swd"
+path = "examples/idcode_swd.rs"
+
+[[example]]
+name = "soft_swd"
+path = "examples/soft_swd.rs"
+
+[[example]]
+name = "idcode_stm32"
+path = "examples/idcode_stm32.rs"
+
+[[example]]
+name = "ap_idr"
+path = "examples/ap_idr.rs"
