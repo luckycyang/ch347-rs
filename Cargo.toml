@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+bitvec = "1.0.1"
 critical-section = { version = "1.2.0", features = ["std"] }
 embassy-hal-internal = "0.2.0"
 embedded-hal = "1.0.0"
