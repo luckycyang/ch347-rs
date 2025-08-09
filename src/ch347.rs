@@ -50,7 +50,7 @@ pub fn init() -> Result<Peripherals, Error> {
 pub fn write(buf: &[u8]) -> Result<(), Error> {
     if let Some(device) = CH347.get() {
         device
-            .write_bulk(0x06, buf, Duration::from_millis(5000))
+            .write_bulk(0x06, buf, Duration::from_millis(500))
             .map_err(|_| Error::Tx)?;
         log::info!("usb write: {}", format_u8_array(buf));
 
@@ -64,14 +64,13 @@ pub fn write(buf: &[u8]) -> Result<(), Error> {
 pub fn read(buf: &mut [u8]) -> Result<usize, Error> {
     if let Some(device) = CH347.get() {
         let rev = device
-            .read_bulk(0x86, buf, Duration::from_millis(5000))
+            .read_bulk(0x86, buf, Duration::from_millis(500))
             .map_err(|_| Error::Rx)?;
         log::info!("usb read: {}", format_u8_array(&buf[..rev]));
 
         Ok(rev)
     } else {
         log::info!("Can't get ch347 device");
-
         Err(Error::Rx)
     }
 }
